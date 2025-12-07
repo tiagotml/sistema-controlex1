@@ -194,3 +194,95 @@ const { error } = await supabase
 ```
 
 Always handle errors and call `onUpdate()` callback to refresh data in parent component.
+
+## Automation: AI Agents & MCP Tools
+
+**IMPORTANT:** Claude Code should AUTOMATICALLY determine which specialized agent or MCP tool to use based on the task type, WITHOUT waiting for explicit user instruction.
+
+### AI Agents (Use Task Tool)
+
+**Backend-Architect Agent** (`subagent_type: "backend-architect"`)
+- **When to use automatically:**
+  - Modifying Supabase queries or database operations
+  - Implementing new API endpoints or data fetching logic
+  - Adding business logic calculations (ROI, CPL, CPA, etc.)
+  - Optimizing database performance or query efficiency
+  - Creating new SQL migrations or modifying schema
+  - Adding server-side validation or data processing
+
+**Frontend-Specialist Agent** (`subagent_type: "frontend-specialist"`)
+- **When to use automatically:**
+  - Creating new UI components or modifying existing ones
+  - Implementing new charts or data visualizations (Recharts)
+  - Styling changes with Tailwind CSS
+  - Adding new forms or input controls
+  - Improving responsive design or layout
+  - Adding animations, transitions, or visual effects
+  - Modifying dashboard cards, badges, or UI elements
+
+**Code-Reviewer Agent** (`subagent_type: "code-reviewer"`)
+- **When to use automatically:**
+  - IMMEDIATELY after completing ANY significant code changes
+  - After adding a new feature or component
+  - After fixing a bug
+  - After refactoring code
+  - Before committing changes to git
+  - User explicitly requests code review
+
+**Explore Agent** (`subagent_type: "Explore"`)
+- **When to use automatically:**
+  - User asks "where is..." or "how does... work"
+  - Need to understand codebase structure before making changes
+  - Looking for patterns across multiple files
+  - Investigating how a feature is implemented
+  - Finding all occurrences of a pattern (not a specific file)
+
+### MCP Tools (Supabase)
+
+**IMPORTANT:** Always prefer MCP tools over manual SQL or API calls when available.
+
+**Supabase MCP Tools - Use AUTOMATICALLY for:**
+- Database operations (list tables, execute SQL, migrations)
+- Getting project configuration (URL, keys)
+- Checking logs or diagnostics
+- Any Supabase-related task
+
+**Example automatic workflows:**
+
+```
+User: "Add a new field to track conversion rate"
+→ Use backend-architect agent (database schema change)
+→ After implementation, use code-reviewer agent
+→ Commit changes with git
+
+User: "The dashboard cards look cluttered"
+→ Use frontend-specialist agent (UI/styling task)
+→ After implementation, use code-reviewer agent
+
+User: "Where is the ROI calculation happening?"
+→ Use Explore agent (codebase investigation)
+
+User: "Check if the lancamentos table exists"
+→ Use Supabase MCP tools directly (if available)
+
+User: "Fix the bug in the monthly view"
+→ First investigate with Explore agent (if needed)
+→ Then use backend-architect or frontend-specialist based on the bug type
+→ Then use code-reviewer agent after fix
+```
+
+### Decision Tree for Agent Selection
+
+1. **Is it a UI/styling task?** → frontend-specialist
+2. **Is it a database/API/business logic task?** → backend-architect
+3. **Is it a "where/how does X work" question?** → Explore
+4. **Did I just finish writing code?** → code-reviewer
+5. **Is it a Supabase operation?** → MCP tools first, backend-architect if complex
+
+### Rules
+
+- **ALWAYS use specialized agents** - Don't do complex tasks directly
+- **ALWAYS review code after implementation** - Use code-reviewer agent
+- **PREFER MCP tools** - Use them instead of manual operations when available
+- **DON'T ask user which agent to use** - Decide automatically based on task type
+- **DO explain which agent you're using** - Brief mention like "Using backend-architect agent to implement this feature"
