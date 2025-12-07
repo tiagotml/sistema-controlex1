@@ -39,6 +39,13 @@ function App() {
   const carregarLancamentos = async () => {
     try {
       setLoading(true)
+
+      // DEBUG: Verificar se as variáveis de ambiente estão carregadas
+      console.log('🔍 DEBUG - Variáveis de ambiente:')
+      console.log('VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL ? '✅ Configurada' : '❌ NÃO configurada')
+      console.log('VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY ? '✅ Configurada' : '❌ NÃO configurada')
+      console.log('Modo:', import.meta.env.DEV ? 'DESENVOLVIMENTO' : 'PRODUÇÃO')
+
       const { data, error } = await supabase
         .from('lancamentos')
         .select('*')
@@ -50,10 +57,18 @@ function App() {
       setUsandoDadosFake(false)
     } catch (error) {
       console.error('Erro ao carregar lançamentos:', error)
-      // Usa dados fake em caso de erro
-      console.log('Usando dados fake para demonstração...')
-      setLancamentos(dadosFake)
-      setUsandoDadosFake(true)
+
+      // Só usa dados fake em modo de desenvolvimento
+      if (import.meta.env.DEV) {
+        console.log('⚠️  Modo desenvolvimento: usando dados fake para demonstração')
+        setLancamentos(dadosFake)
+        setUsandoDadosFake(true)
+      } else {
+        // Em produção, mostra erro e não carrega dados fake
+        console.error('❌ Erro ao conectar ao banco de dados. Verifique sua configuração do Supabase.')
+        setLancamentos([])
+        setUsandoDadosFake(false)
+      }
     } finally {
       setLoading(false)
     }
@@ -64,25 +79,21 @@ function App() {
   }, [])
 
   useEffect(() => {
-    aplicarFiltro()
-  }, [lancamentos, filtroAtual])
-
-  const aplicarFiltro = () => {
     if (filtroAtual.tipo === 'todos' || !filtroAtual.inicio) {
       setLancamentosFiltrados(lancamentos)
       return
     }
 
     const filtrados = lancamentos.filter(lanc => {
-      const dataLanc = new Date(lanc.data)
-      const dataInicio = new Date(filtroAtual.inicio)
-      const dataFim = new Date(filtroAtual.fim)
+      const dataLanc = new Date(lanc.data + 'T00:00:00')
+      const dataInicio = new Date(filtroAtual.inicio + 'T00:00:00')
+      const dataFim = new Date(filtroAtual.fim + 'T00:00:00')
 
       return dataLanc >= dataInicio && dataLanc <= dataFim
     })
 
     setLancamentosFiltrados(filtrados)
-  }
+  }, [lancamentos, filtroAtual])
 
   const handleFilterChange = (filtro) => {
     setFiltroAtual(filtro)
