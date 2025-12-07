@@ -53,10 +53,17 @@ function App() {
 
       if (error) throw error
 
+      console.log('✅ Dados carregados com sucesso:', data?.length || 0, 'registros')
       setLancamentos(data || [])
       setUsandoDadosFake(false)
     } catch (error) {
-      console.error('Erro ao carregar lançamentos:', error)
+      console.error('❌ Erro ao carregar lançamentos:', error)
+      console.error('📋 Detalhes do erro:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      })
 
       // Só usa dados fake em modo de desenvolvimento
       if (import.meta.env.DEV) {
