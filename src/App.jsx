@@ -39,13 +39,6 @@ function App() {
   const carregarLancamentos = async () => {
     try {
       setLoading(true)
-
-      // DEBUG: Verificar se as variáveis de ambiente estão carregadas
-      console.log('🔍 DEBUG - Variáveis de ambiente:')
-      console.log('VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL ? '✅ Configurada' : '❌ NÃO configurada')
-      console.log('VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY ? '✅ Configurada' : '❌ NÃO configurada')
-      console.log('Modo:', import.meta.env.DEV ? 'DESENVOLVIMENTO' : 'PRODUÇÃO')
-
       const { data, error } = await supabase
         .from('lancamentos')
         .select('*')
@@ -53,17 +46,10 @@ function App() {
 
       if (error) throw error
 
-      console.log('✅ Dados carregados com sucesso:', data?.length || 0, 'registros')
       setLancamentos(data || [])
       setUsandoDadosFake(false)
     } catch (error) {
-      console.error('❌ Erro ao carregar lançamentos:', error)
-      console.error('📋 Detalhes do erro:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      })
+      console.error('Erro ao carregar lançamentos:', error)
 
       // Só usa dados fake em modo de desenvolvimento
       if (import.meta.env.DEV) {

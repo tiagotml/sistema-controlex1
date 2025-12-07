@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react'
-import { DollarSign, Plus, Edit2, Trash2, Save, X } from 'lucide-react'
+import { DollarSign, Plus, Edit2, Trash2, Save, X, Loader2 } from 'lucide-react'
 import { supabase } from '../services/supabase'
 import { formatarMoeda } from '../utils/calculations'
+import { validarProLabore, interpretarErroSupabase } from '../utils/validation'
 
 export default function ProLaboreManager() {
   const [prolabores, setProlabores] = useState([])
   const [editando, setEditando] = useState(null)
   const [adicionando, setAdicionando] = useState(false)
   const [formData, setFormData] = useState({ mes_ano: '', valor: '', descricao: '' })
+  const [loading, setLoading] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
+  const [mensagemErro, setMensagemErro] = useState('')
 
   useEffect(() => {
     carregarProlabores()
@@ -28,51 +32,82 @@ export default function ProLaboreManager() {
   }
 
   const handleAdicionar = async () => {
+    setMensagemErro('')
+
+    // Valida os dados antes de enviar
+    const erros = validarProLabore(formData)
+    if (erros.length > 0) {
+      setMensagemErro(erros.join(' • '))
+      return
+    }
+
+    setLoading(true)
     try {
+      const dadosLimpos = {
+        mes_ano: formData.mes_ano,
+        valor: parseFloat(formData.valor),
+        descricao: formData.descricao
+      }
+
       const { error } = await supabase
         .from('prolabore')
-        .insert([{
-          mes_ano: formData.mes_ano,
-          valor: parseFloat(formData.valor),
-          descricao: formData.descricao
-        }])
+        .insert([dadosLimpos])
 
       if (error) throw error
 
       setAdicionando(false)
       setFormData({ mes_ano: '', valor: '', descricao: '' })
+      setMensagemErro('')
       carregarProlabores()
     } catch (error) {
       console.error('Erro ao adicionar:', error)
-      alert('Erro ao adicionar pró-labore. Verifique se já existe um registro para este mês.')
+      setMensagemErro(interpretarErroSupabase(error))
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleEditar = async (id) => {
+    setMensagemErro('')
+
+    // Valida os dados antes de enviar
+    const erros = validarProLabore(formData)
+    if (erros.length > 0) {
+      setMensagemErro(erros.join(' • '))
+      return
+    }
+
+    setLoading(true)
     try {
+      const dadosLimpos = {
+        mes_ano: formData.mes_ano,
+        valor: parseFloat(formData.valor),
+        descricao: formData.descricao
+      }
+
       const { error } = await supabase
         .from('prolabore')
-        .update({
-          mes_ano: formData.mes_ano,
-          valor: parseFloat(formData.valor),
-          descricao: formData.descricao
-        })
+        .update(dadosLimpos)
         .eq('id', id)
 
       if (error) throw error
 
       setEditando(null)
       setFormData({ mes_ano: '', valor: '', descricao: '' })
+      setMensagemErro('')
       carregarProlabores()
     } catch (error) {
       console.error('Erro ao editar:', error)
-      alert('Erro ao editar pró-labore')
+      setMensagemErro(interpretarErroSupabase(error))
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleExcluir = async (id) => {
     if (!confirm('Tem certeza que deseja excluir este pró-labore?')) return
 
+    setDeletingId(id)
     try {
       const { error } = await supabase
         .from('prolabore')
@@ -83,12 +118,15 @@ export default function ProLaboreManager() {
       carregarProlabores()
     } catch (error) {
       console.error('Erro ao excluir:', error)
-      alert('Erro ao excluir pró-labore')
+      alert(interpretarErroSupabase(error))
+    } finally {
+      setDeletingId(null)
     }
   }
 
   const iniciarEdicao = (prolabore) => {
     setEditando(prolabore.id)
+    setMensagemErro('')
     setFormData({
       mes_ano: prolabore.mes_ano,
       valor: prolabore.valor,
@@ -100,6 +138,7 @@ export default function ProLaboreManager() {
     setEditando(null)
     setAdicionando(false)
     setFormData({ mes_ano: '', valor: '', descricao: '' })
+    setMensagemErro('')
   }
 
   const formatarMesAno = (mesAno) => {
@@ -161,18 +200,30 @@ export default function ProLaboreManager() {
               />
             </div>
           </div>
+          {mensagemErro && (
+            <div className="text-sm text-red-600 font-medium mt-3 px-3 py-2 bg-red-50 rounded-lg border border-red-200">
+              {mensagemErro}
+            </div>
+          )}
           <div className="flex gap-2 mt-3">
             <button
               onClick={handleAdicionar}
-              disabled={!formData.mes_ano || !formData.valor}
+              disabled={loading || !formData.mes_ano || !formData.valor}
               className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Salvar pró-labore"
             >
-              <Save className="w-4 h-4" />
-              Salvar
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              {loading ? 'Salvando...' : 'Salvar'}
             </button>
             <button
               onClick={cancelar}
-              className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+              disabled={loading}
+              className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+              aria-label="Cancelar"
             >
               <X className="w-4 h-4" />
               Cancelar
@@ -224,17 +275,30 @@ export default function ProLaboreManager() {
                     />
                   </div>
                 </div>
+                {mensagemErro && (
+                  <div className="text-sm text-red-600 font-medium mt-3 px-3 py-2 bg-red-50 rounded-lg border border-red-200">
+                    {mensagemErro}
+                  </div>
+                )}
                 <div className="flex gap-2 mt-3">
                   <button
                     onClick={() => handleEditar(prolabore.id)}
-                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                    disabled={loading}
+                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Salvar alterações"
                   >
-                    <Save className="w-4 h-4" />
-                    Salvar
+                    {loading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    {loading ? 'Salvando...' : 'Salvar'}
                   </button>
                   <button
                     onClick={cancelar}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                    disabled={loading}
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                    aria-label="Cancelar edição"
                   >
                     <X className="w-4 h-4" />
                     Cancelar
@@ -266,17 +330,25 @@ export default function ProLaboreManager() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => iniciarEdicao(prolabore)}
-                    className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                    disabled={deletingId === prolabore.id}
+                    className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
+                    aria-label="Editar pró-labore"
                     title="Editar"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleExcluir(prolabore.id)}
-                    className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                    disabled={deletingId === prolabore.id}
+                    className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
+                    aria-label="Excluir pró-labore"
                     title="Excluir"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    {deletingId === prolabore.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>

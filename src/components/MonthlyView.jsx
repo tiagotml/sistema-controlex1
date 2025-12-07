@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Calendar, DollarSign, TrendingUp, Users, ShoppingCart, Target, Activity, Award } from 'lucide-react'
-import { calcularResumoMensal, formatarMoeda, formatarMultiplicador, formatarNumero } from '../utils/calculations'
+import { Calendar, DollarSign, TrendingUp, Users, ShoppingCart, Target, Activity, Award, Download } from 'lucide-react'
+import { calcularResumoMensal, formatarMoeda, formatarMultiplicador, formatarNumero, calcularROI, calcularCPL, calcularCPA, calcularTicketMedio } from '../utils/calculations'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { supabase } from '../services/supabase'
+import { exportarResumoMensalCSV } from '../utils/export'
 
 export default function MonthlyView({ lancamentos }) {
   const [prolabores, setProlabores] = useState({})
@@ -238,15 +239,24 @@ export default function MonthlyView({ lancamentos }) {
 
       {/* Tabela Completa */}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div className="bg-gradient-to-r from-gray-700 to-gray-800 p-4">
+        <div className="bg-gradient-to-r from-gray-700 to-gray-800 p-4 flex items-center justify-between">
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <Activity className="w-5 h-5" />
             Tabela Detalhada por Mês
           </h3>
+          <button
+            onClick={() => exportarResumoMensalCSV(resumoMensal, prolabores)}
+            className="bg-white text-gray-800 hover:bg-gray-100 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+            aria-label="Exportar resumo mensal para CSV"
+          >
+            <Download className="w-4 h-4" />
+            Exportar CSV
+          </button>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full">
+            <caption className="sr-only">Resumo mensal de métricas de marketing e vendas</caption>
             <thead>
               <tr className="bg-gray-100 border-b-2 border-gray-200">
                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Mês</th>
@@ -322,13 +332,13 @@ export default function MonthlyView({ lancamentos }) {
                 <td className="px-4 py-4 text-sm text-right">{formatarMoeda(totais.lucro)}</td>
                 <td className="px-4 py-4 text-sm text-right">{formatarMoeda(totais.proLabore)}</td>
                 <td className="px-4 py-4 text-sm text-right">{formatarMoeda(totalLucroLiquido)}</td>
-                <td className="px-4 py-4 text-sm text-right">{formatarMultiplicador(totais.faturamento / totais.gastoAds)}</td>
+                <td className="px-4 py-4 text-sm text-right">{formatarMultiplicador(calcularROI(totais.faturamento, totais.gastoAds))}</td>
                 <td className="px-4 py-4 text-sm text-right">{totais.leads}</td>
                 <td className="px-4 py-4 text-sm text-right">{totais.vendas}</td>
-                <td className="px-4 py-4 text-sm text-right">{formatarMoeda(totais.gastoAds / totais.leads)}</td>
-                <td className="px-4 py-4 text-sm text-right">{formatarMoeda(totais.gastoAds / totais.vendas)}</td>
-                <td className="px-4 py-4 text-sm text-right">{formatarMoeda(totais.faturamento / totais.vendas)}</td>
-                <td className="px-4 py-4 text-sm text-right">{formatarNumero((totais.vendas / totais.leads) * 100)}%</td>
+                <td className="px-4 py-4 text-sm text-right">{formatarMoeda(calcularCPL(totais.gastoAds, totais.leads))}</td>
+                <td className="px-4 py-4 text-sm text-right">{formatarMoeda(calcularCPA(totais.gastoAds, totais.vendas))}</td>
+                <td className="px-4 py-4 text-sm text-right">{formatarMoeda(calcularTicketMedio(totais.faturamento, totais.vendas))}</td>
+                <td className="px-4 py-4 text-sm text-right">{totais.leads > 0 ? formatarNumero((totais.vendas / totais.leads) * 100) : '0,00'}%</td>
               </tr>
             </tfoot>
           </table>

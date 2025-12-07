@@ -1,11 +1,16 @@
-import { useState } from 'react'
-import { History, Trash2, Edit2, X, Save, TrendingUp, TrendingDown } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { History, Trash2, Edit2, X, Save, TrendingUp, TrendingDown, Loader2, Download } from 'lucide-react'
 import { supabase } from '../services/supabase'
 import { formatarMoeda, formatarNumero, formatarMultiplicador, calcularMetricasDiarias } from '../utils/calculations'
+import { validarLancamento, interpretarErroSupabase } from '../utils/validation'
+import { exportarLancamentosCSV } from '../utils/export'
 
 export default function HistoryTable({ lancamentos, onUpdate }) {
   const [editando, setEditando] = useState(null)
   const [formEdit, setFormEdit] = useState({})
+  const [deletingId, setDeletingId] = useState(null)
+  const [savingId, setSavingId] = useState(null)
+  const [mensagemErro, setMensagemErro] = useState('')
 
   if (!lancamentos || lancamentos.length === 0) {
     return (
@@ -21,6 +26,7 @@ export default function HistoryTable({ lancamentos, onUpdate }) {
 
   const handleEdit = (lancamento) => {
     setEditando(lancamento.id)
+    setMensagemErro('')
     setFormEdit({
       data: lancamento.data,
       gasto_ads: lancamento.gasto_ads,
@@ -33,35 +39,53 @@ export default function HistoryTable({ lancamentos, onUpdate }) {
   const handleCancelEdit = () => {
     setEditando(null)
     setFormEdit({})
+    setMensagemErro('')
   }
 
   const handleSaveEdit = async (id) => {
+    setMensagemErro('')
+    setSavingId(id)
+
     try {
+      // Valida os dados antes de enviar
+      const erros = validarLancamento(formEdit)
+      if (erros.length > 0) {
+        setMensagemErro(erros.join(' • '))
+        setSavingId(null)
+        return
+      }
+
+      const dadosLimpos = {
+        data: formEdit.data,
+        gasto_ads: parseFloat(formEdit.gasto_ads),
+        valor_vendas: parseFloat(formEdit.valor_vendas),
+        qtd_leads: parseInt(formEdit.qtd_leads),
+        qtd_vendas: parseInt(formEdit.qtd_vendas)
+      }
+
       const { error } = await supabase
         .from('lancamentos')
-        .update({
-          data: formEdit.data,
-          gasto_ads: parseFloat(formEdit.gasto_ads),
-          valor_vendas: parseFloat(formEdit.valor_vendas),
-          qtd_leads: parseInt(formEdit.qtd_leads),
-          qtd_vendas: parseInt(formEdit.qtd_vendas)
-        })
+        .update(dadosLimpos)
         .eq('id', id)
 
       if (error) throw error
 
       setEditando(null)
       setFormEdit({})
+      setMensagemErro('')
       if (onUpdate) onUpdate()
     } catch (error) {
       console.error('Erro ao editar:', error)
-      alert('Erro ao editar lançamento')
+      setMensagemErro(interpretarErroSupabase(error))
+    } finally {
+      setSavingId(null)
     }
   }
 
   const handleDelete = async (id) => {
     if (!confirm('Tem certeza que deseja excluir este lançamento?')) return
 
+    setDeletingId(id)
     try {
       const { error } = await supabase
         .from('lancamentos')
@@ -73,7 +97,9 @@ export default function HistoryTable({ lancamentos, onUpdate }) {
       if (onUpdate) onUpdate()
     } catch (error) {
       console.error('Erro ao deletar:', error)
-      alert('Erro ao deletar lançamento')
+      alert(interpretarErroSupabase(error))
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -82,30 +108,48 @@ export default function HistoryTable({ lancamentos, onUpdate }) {
     return d.toLocaleDateString('pt-BR')
   }
 
-  // Ordena por data (mais recente primeiro)
-  const lancamentosOrdenados = [...lancamentos].sort((a, b) => new Date(b.data) - new Date(a.data))
+  // Ordena por data (mais recente primeiro) - memoizado para evitar recalcular
+  const lancamentosOrdenados = useMemo(() => {
+    return [...lancamentos].sort((a, b) => new Date(b.data) - new Date(a.data))
+  }, [lancamentos])
 
-  // Calcula médias para comparação
-  const mediasGerais = lancamentos.reduce((acc, lanc) => {
-    const metricas = calcularMetricasDiarias(lanc)
+  // Calcula médias para comparação - memoizado para performance
+  const { mediaROI, mediaLucro } = useMemo(() => {
+    if (lancamentos.length === 0) return { mediaROI: 0, mediaLucro: 0 }
+
+    let totalROI = 0
+    let totalLucro = 0
+
+    lancamentos.forEach(lanc => {
+      const metricas = calcularMetricasDiarias(lanc)
+      totalROI += metricas.roi
+      totalLucro += metricas.lucro
+    })
+
     return {
-      roi: acc.roi + metricas.roi,
-      lucro: acc.lucro + metricas.lucro,
-      count: acc.count + 1
+      mediaROI: totalROI / lancamentos.length,
+      mediaLucro: totalLucro / lancamentos.length
     }
-  }, { roi: 0, lucro: 0, count: 0 })
-
-  const mediaROI = mediasGerais.roi / mediasGerais.count
-  const mediaLucro = mediasGerais.lucro / mediasGerais.count
+  }, [lancamentos])
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
-        <h2 className="text-3xl font-bold mb-2 flex items-center gap-2">
-          <History className="w-8 h-8" />
-          Histórico de Lançamentos
-        </h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-3xl font-bold flex items-center gap-2">
+            <History className="w-8 h-8" />
+            Histórico de Lançamentos
+          </h2>
+          <button
+            onClick={() => exportarLancamentosCSV(lancamentos)}
+            className="bg-white text-purple-600 hover:bg-purple-50 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+            aria-label="Exportar para CSV"
+          >
+            <Download className="w-4 h-4" />
+            Exportar CSV
+          </button>
+        </div>
         <p className="text-purple-100">Todos os seus lançamentos diários com métricas detalhadas</p>
       </div>
 
@@ -113,6 +157,7 @@ export default function HistoryTable({ lancamentos, onUpdate }) {
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
+            <caption className="sr-only">Histórico de lançamentos diários com métricas de marketing</caption>
             <thead>
               <tr className="bg-gradient-to-r from-gray-700 to-gray-800 text-white">
                 <th className="px-4 py-4 text-left text-xs font-bold uppercase">Data</th>
@@ -191,19 +236,32 @@ export default function HistoryTable({ lancamentos, onUpdate }) {
                           </div>
                         </div>
                       </td>
-                      <td colSpan="2" className="px-4 py-3 text-center">
+                      <td colSpan="2" className="px-4 py-3">
+                        {mensagemErro && (
+                          <div className="text-xs text-red-600 font-medium mb-2 px-2 py-1 bg-red-50 rounded">
+                            {mensagemErro}
+                          </div>
+                        )}
                         <div className="flex gap-2 justify-center">
                           <button
                             onClick={() => handleSaveEdit(lancamento.id)}
-                            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                            disabled={savingId === lancamento.id}
+                            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-label="Salvar alterações"
                             title="Salvar"
                           >
-                            <Save className="w-4 h-4" />
-                            Salvar
+                            {savingId === lancamento.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Save className="w-4 h-4" />
+                            )}
+                            {savingId === lancamento.id ? 'Salvando...' : 'Salvar'}
                           </button>
                           <button
                             onClick={handleCancelEdit}
-                            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                            disabled={savingId === lancamento.id}
+                            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                            aria-label="Cancelar edição"
                             title="Cancelar"
                           >
                             <X className="w-4 h-4" />
@@ -290,17 +348,25 @@ export default function HistoryTable({ lancamentos, onUpdate }) {
                       <div className="flex gap-2 justify-center">
                         <button
                           onClick={() => handleEdit(lancamento)}
-                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                          disabled={deletingId === lancamento.id}
+                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
+                          aria-label="Editar lançamento"
                           title="Editar"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(lancamento.id)}
-                          className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                          disabled={deletingId === lancamento.id}
+                          className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
+                          aria-label="Excluir lançamento"
                           title="Excluir"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          {deletingId === lancamento.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
                         </button>
                       </div>
                     </td>

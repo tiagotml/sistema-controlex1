@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../services/supabase'
 import { PlusCircle, Save } from 'lucide-react'
+import { validarLancamento, interpretarErroSupabase } from '../utils/validation'
 
 export default function DailyForm({ onLancamentoAdded }) {
   const hoje = new Date().toISOString().split('T')[0]
@@ -33,15 +34,32 @@ export default function DailyForm({ onLancamentoAdded }) {
       // Converte strings para números
       const dados = {
         data: formData.data,
-        gasto_ads: parseFloat(formData.gasto_ads) || 0,
-        valor_vendas: parseFloat(formData.valor_vendas) || 0,
-        qtd_leads: parseInt(formData.qtd_leads) || 0,
-        qtd_vendas: parseInt(formData.qtd_vendas) || 0
+        gasto_ads: formData.gasto_ads,
+        valor_vendas: formData.valor_vendas,
+        qtd_leads: formData.qtd_leads,
+        qtd_vendas: formData.qtd_vendas
+      }
+
+      // Valida os dados antes de enviar
+      const erros = validarLancamento(dados)
+      if (erros.length > 0) {
+        setMensagem({ tipo: 'erro', texto: erros.join(' • ') })
+        setLoading(false)
+        return
+      }
+
+      // Converte para tipos corretos após validação
+      const dadosLimpos = {
+        data: dados.data,
+        gasto_ads: parseFloat(dados.gasto_ads),
+        valor_vendas: parseFloat(dados.valor_vendas),
+        qtd_leads: parseInt(dados.qtd_leads),
+        qtd_vendas: parseInt(dados.qtd_vendas)
       }
 
       const { data, error } = await supabase
         .from('lancamentos')
-        .insert([dados])
+        .insert([dadosLimpos])
         .select()
 
       if (error) throw error
@@ -64,7 +82,7 @@ export default function DailyForm({ onLancamentoAdded }) {
 
     } catch (error) {
       console.error('Erro ao salvar:', error)
-      setMensagem({ tipo: 'erro', texto: 'Erro ao salvar lançamento. Verifique a conexão com o Supabase.' })
+      setMensagem({ tipo: 'erro', texto: interpretarErroSupabase(error) })
     } finally {
       setLoading(false)
     }
@@ -80,10 +98,11 @@ export default function DailyForm({ onLancamentoAdded }) {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="data" className="block text-sm font-medium text-gray-700 mb-1">
               Data
             </label>
             <input
+              id="data"
               type="date"
               name="data"
               value={formData.data}
@@ -94,10 +113,11 @@ export default function DailyForm({ onLancamentoAdded }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="gasto_ads" className="block text-sm font-medium text-gray-700 mb-1">
               Gasto em Anúncios (R$)
             </label>
             <input
+              id="gasto_ads"
               type="number"
               name="gasto_ads"
               value={formData.gasto_ads}
@@ -111,10 +131,11 @@ export default function DailyForm({ onLancamentoAdded }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="valor_vendas" className="block text-sm font-medium text-gray-700 mb-1">
               Valor em Vendas (R$)
             </label>
             <input
+              id="valor_vendas"
               type="number"
               name="valor_vendas"
               value={formData.valor_vendas}
@@ -128,10 +149,11 @@ export default function DailyForm({ onLancamentoAdded }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="qtd_leads" className="block text-sm font-medium text-gray-700 mb-1">
               Quantidade de Leads
             </label>
             <input
+              id="qtd_leads"
               type="number"
               name="qtd_leads"
               value={formData.qtd_leads}
@@ -144,10 +166,11 @@ export default function DailyForm({ onLancamentoAdded }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="qtd_vendas" className="block text-sm font-medium text-gray-700 mb-1">
               Quantidade de Vendas
             </label>
             <input
+              id="qtd_vendas"
               type="number"
               name="qtd_vendas"
               value={formData.qtd_vendas}
